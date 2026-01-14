@@ -1,17 +1,17 @@
-from flask import request, jsonify
 from datetime import datetime
 from app import db
 from app.models import Book, Library
 
 
-def create_book():
-    data = request.get_json()
+def create_book(data):
     required = ["title", "author", "library_id"]
 
     if not data or any(field not in data for field in required):
-        return jsonify({"error": "Missing required fields"}), 400
+        raise ValueError("Missing required fields")
 
-    Library.query.get_or_404(data["library_id"])
+    library = Library.query.get(data["library_id"])
+    if not library:
+        raise LookupError("Library not found")
 
     book = Book(
         title=data["title"],
@@ -23,96 +23,58 @@ def create_book():
     db.session.add(book)
     db.session.commit()
 
-    return (
-        jsonify(
-            {
-                "id": book.id,
-                "title": book.title,
-                "author": book.author,
-                "library_id": book.library_id,
-            }
-        ),
-        201,
-    )
+    return book
 
 
-def list_books():
+def list_books(filters=None):
     query = Book.query
 
-    library_id = request.args.get("library_id")
-    search = request.args.get("search")
+    if filters:
+        if "library_id" in filters:
+            query = query.filter(Book.library_id == filters["library_id"])
 
-    if library_id:
-        query = query.filter(Book.library_id == library_id)
+        if "search" in filters:
+            search = filters["search"]
+            query = query.filter(
+                db.or_(
+                    Book.title.ilike(f"%{search}%"),
+                    Book.author.ilike(f"%{search}%"),
+                )
+            )
 
-    if search:
-        query = query.filter(
-            db.or_(Book.title.ilike(f"%{search}%"), Book.author.ilike(f"%{search}%"))
-        )
-
-    books = query.all()
-
-    return jsonify(
-        [
-            {
-                "id": book.id,
-                "title": book.title,
-                "author": book.author,
-                "library_id": book.library_id,
-                "created_at": book.created_at.isoformat(),
-            }
-            for book in books
-        ]
-    )
+    return query.all()
 
 
-def update_book(book_id):
-    book = Book.query.get_or_404(book_id)
-    data = request.get_json()
+def update_book(book, data):
+    if "title" in data:
+        book.title = data["title"]
 
-    if data:
-        if "title" in data:
-            book.title = data["title"]
-        if "author" in data:
-            book.author = data["author"]
-        if "library_id" in data:
-            Library.query.get_or_404(data["library_id"])
-            book.library_id = data["library_id"]
+    if "author" in data:
+        book.author = data["author"]
+
+    if "library_id" in data:
+        library = Library.query.get(data["library_id"])
+        if not library:
+            raise LookupError("Library not found")
+        book.library_id = data["library_id"]
 
     db.session.commit()
-
-    return jsonify(
-        {
-            "id": book.id,
-            "title": book.title,
-            "author": book.author,
-            "library_id": book.library_id,
-        }
-    )
+    return book
 
 
-def delete_book(book_id):
-    book = Book.query.get_or_404(book_id)
-
+def delete_book(book):
     db.session.delete(book)
     db.session.commit()
 
-    return jsonify({"message": "Book deleted"})
 
-
-def transfer_book(book_id):
-    book = Book.query.get_or_404(book_id)
-    data = request.get_json()
-
+def transfer_book(book, data):
     if not data or "new_library_id" not in data:
-        return jsonify({"error": "Missing new_library_id in request body"}), 400
-
+        raise ValueError("Missing new_library_id")
     new_library_id = data["new_library_id"]
     library = Library.query.get_or_404(new_library_id)
+    if not library:
+        raise LookupError("Library not found")
 
     book.library_id = new_library_id
     db.session.commit()
-
-    return jsonify(
-        {"message": f"Book {book.title} transferred to library {library.name}"}
-    )
+    return library

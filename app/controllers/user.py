@@ -1,12 +1,10 @@
-from flask import request, jsonify
 from app import db
 from app.models import User, Library, Book
 
 
-def create_user():
-    data = request.get_json()
-    if not data or not "name" in data:
-        return jsonify({"error": "Missing name in request"}), 400
+def create_user(data):
+    if not data or "name" not in data:
+        raise ValueError("Missing name in request")
 
     user = User(name=data["name"])
     library = Library(name=f"{data['name']}'s Library", user=user)
@@ -15,58 +13,36 @@ def create_user():
     db.session.add(library)
     db.session.commit()
 
-    return jsonify({"id": user.id, "name": user.name, "library_id": library.id}), 201
+    return user, library
 
 
 def get_users():
-    users = User.query.all()
-    return jsonify(
-        [
-            {
-                "id": user.id,
-                "name": user.name,
-                "library_id": user.library.id if user.library else None,
-            }
-            for user in users
-        ]
-    )
+    return User.query.all()
 
 
 def get_user(user_id):
-    user = User.query.get_or_404(user_id)
-    return jsonify(
-        {
-            "id": user.id,
-            "name": user.name,
-            "library_id": user.library.id if user.library else None,
-        }
-    )
+    user = User.query.get(user_id)
+    if not user:
+        raise LookupError("User not found")
+    return user
 
 
-def update_user(user_id):
-    user = User.query.get_or_404(user_id)
-    data = request.get_json()
-
-    if not data or not "name" in data:
-        return jsonify({"error": "Missing name in request"}), 400
+def update_user(user, data):
+    if not data or "name" not in data:
+        raise ValueError("Missing name in request")
 
     user.name = data["name"]
     db.session.commit()
+    return user
 
-    return jsonify({"id": user.id, "name": user.name})
 
-
-def delete_user(user_id):
-    user = User.query.get_or_404(user_id)
+def delete_user(user):
     db.session.delete(user)
     db.session.commit()
-    return jsonify({"message": "User deleted successfully"})
 
 
-def get_user_book_count(user_id):
-    user = User.query.get_or_404(user_id)
+def get_user_book_count(user):
     if not user.library:
-        return jsonify({"error": "User does not have a library"}), 404
+        raise LookupError("User does not have a library")
 
-    book_count = Book.query.filter_by(library_id=user.library.id).count()
-    return jsonify({"book_count": book_count})
+    return Book.query.filter_by(library_id=user.library.id).count()

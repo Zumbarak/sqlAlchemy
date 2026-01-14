@@ -1,43 +1,30 @@
-from flask import request, jsonify
 from app import db
 from app.models import Library
 
 
-def create_library():
-    data = request.get_json()
-
+def create_library(data):
     if not data or "name" not in data:
-        return jsonify({"error": "Missing required fields"}), 400
+        raise ValueError("Missing required fields")
 
     library = Library(name=data["name"])
     db.session.add(library)
     db.session.commit()
 
-    return jsonify({"id": library.id, "name": library.name}), 201
+    return library
 
 
 def list_libraries():
-    libraries = Library.query.all()
-
-    return jsonify([{"id": library.id, "name": library.name} for library in libraries])
+    return Library.query.all()
 
 
-def update_library(id):
-    library = Library.query.get_or_404(id)
-    data = request.get_json()
-
+def update_library(library, data):
     if data and "name" in data:
         library.name = data["name"]
 
     db.session.commit()
+    return library
 
-    return jsonify({"id": library.id, "name": library.name})
 
-
-def delete_library(id):
-    library = Library.query.get_or_404(id)
-
+def delete_library(library):
     db.session.delete(library)
     db.session.commit()
-
-    return jsonify({"message": "Library deleted"})

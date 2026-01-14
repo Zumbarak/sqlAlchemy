@@ -15,12 +15,12 @@ def create_app():
     migrate.init_app(app, db)
 
     from app import models
-    from app.routes.book import register_book_routes
-    from app.routes.library import register_library_routes
-    from app.routes.user import register_user_routes
+    from app.routes.book import bp as book_bp
+    from app.routes.library import bp as library_bp
+    from app.routes.user import bp as user_bp
 
-    register_book_routes(app)
-    register_library_routes(app)
-    register_user_routes(app)
+    app.register_blueprint(book_bp)
+    app.register_blueprint(library_bp)
+    app.register_blueprint(user_bp)
 
     return app
